@@ -5,7 +5,6 @@ import fitz as pymupdf
 import numpy as np
 import pandas as pd
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\Users\XUC\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning) #fix this at some point
 import unicodedata
