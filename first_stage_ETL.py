@@ -2,11 +2,12 @@
 import streamlit as st
 from pdf2image import convert_from_path
 import fitz as pymupdf
+import fitz
 import numpy as np
 import pandas as pd
 import pytesseract
 import warnings
-warnings.filterwarnings("ignore", category=FutureWarning) #fix this at some point
+warnings.filterwarnings("ignore", category=FutureWarning) 
 import unicodedata
 import tempfile
 from openpyxl import Workbook
@@ -41,6 +42,114 @@ def process_num(x):
         
     return x
 
+def identify_separators(col):
+    '''Checks a column of data to identify the symbols being used for thousand separation and/or decimal places
+     This is done by checking the number of figures between these symbols or the number of figures after the symbol before the end'''
+    comma_spaces = [len(x.strip(')').strip('(').split(',')[-1]) for x in col if ',' in x]
+    dp_spaces = [len(x.strip(')').strip('(').split('.')[-1]) for x in col if '.' in x]
+    average_comma_spaces = np.median(comma_spaces)
+    average_dp_spaces = np.median(dp_spaces)
+    KSep = 'None'
+    DSep = 'None'
+
+    if len(col) != 0:
+        if average_comma_spaces != np.nan and len(comma_spaces)/len(col) > 0.1:
+            if average_comma_spaces ==3:
+                KSep = ','
+            elif average_comma_spaces <3:
+                DSep = ','
+
+        if average_dp_spaces != np.nan and len(dp_spaces)/len(col) > 0.1:
+            if average_dp_spaces ==3:
+                KSep = '.'
+            elif average_dp_spaces <3:
+                DSep = '.'
+
+        if sum([(',' in item and '.' in item) for item in col])/len(col) > 0:
+            if DSep == ',':
+                KSep = '.'
+            if DSep == '.':
+                KSep = ','
+
+            #combine both
+
+    if DSep != 'None' and DSep != KSep:
+        DP = 'Yes'
+    else:
+        DP = 'No'
+
+    return DP, KSep
+
+def process_num_dp(x,KSep):
+    ''' Slight variation of the normal number processing function to be used when there is both a thousands and decimal point separator'''
+    for a in range(len(x)): 
+        if x[a] == '':
+            pass
+        else:
+            if '(' in x[a]:
+                if ')' in x[a]:
+                    x[a] = x[a].strip('(').strip(')')
+                    x[a] = '-'+x[a]
+
+            #x[a] = x[a].replace(',','')
+            x[a] = x[a].replace(KSep,'')
+            x[a] = x[a].replace(',','.') #once the thousands are gone, we can make them floats
+            x[a] = x[a].replace(' ','')
+
+            if x[a][0] == '0':
+                x[a] = 0
+            
+            if x[a] in ['-','—',"=",'_','--']:
+                x[a] = 0
+            try:
+                x[a] = float(x[a])
+            except:
+                x[a] = 'CHECK'
+        
+    return x
+
+def check_sum_match(df, tabbed_list):
+    
+    # Get the integer locations of the tabbed_list items
+    tabbed_indices = df.index.get_indexer_for(tabbed_list)
+    tabbed_indices = tabbed_indices[tabbed_indices != -1]  # Remove any -1 (not found) values
+    print(tabbed_indices)   
+    tabbed_indices = sorted(set(tabbed_indices))
+
+    groups = []
+    current_group = [tabbed_indices[0]]
+    
+    for i in range(1, len(tabbed_indices)):
+        if tabbed_indices[i] == tabbed_indices[i-1] + 1:
+            current_group.append(tabbed_indices[i])
+        else:
+            groups.append(current_group)
+            current_group = [tabbed_indices[i]]
+    
+    groups.append(current_group)
+    print(groups)
+
+    matched_groups = []
+    for group in groups:
+    
+        start_idx = group[0]
+        end_idx = group[-1]
+        
+        sum_of_consecutive_1 = df.iloc[start_idx:end_idx+1, 0].sum()
+        sum_of_consecutive_2 = df.iloc[start_idx:end_idx+1, 1].sum()
+        value_before_1 = df.iloc[start_idx-1, 0]
+        value_before_2 = df.iloc[start_idx-1, 1]
+
+        if value_before_1 != '' and value_before_2 != '':
+
+        #print(sum_of_consecutive_1,sum_of_consecutive_2,value_before_1,value_before_2)
+
+            if np.isclose(sum_of_consecutive_1, value_before_1) and \
+            np.isclose(sum_of_consecutive_2, value_before_2) :
+                matched_groups.append(group)
+    
+    return matched_groups
+
 def join_by_commas(x):
     i = 0
     l = len(x)
@@ -57,6 +166,8 @@ def join_by_commas(x):
                 break
         i += 1
     return x
+
+
 
 def join_brackets(x):
     
@@ -169,13 +280,17 @@ def PDF_to_df(doc,x,language='eng'):
     df.index = new_index
     notes = []
     
-    list_notes_s = [str(i) for i in range(2,36)[::1]]  
+    list_notes_s = [str(i) for i in range(2,36)[::1]]
+    list_notes_neg = [int(i) for i in range(-36,0)] 
+
     for i in range(len(df[0])):
         if len(df[0][i]) > 3:
             a = df[0][i][1]  # is first item a note? 
             if a in list_notes_s:
                 df[0][i].remove(a)
-                notes.append(a)    
+                notes.append(a) 
+            elif process_num([a])[0] in list_notes_neg:
+                df[0][i].remove(a)   
             elif process_num([a]) == ['CHECK']:
                     df[0][i].remove(a)
                     notes.append(a)
@@ -330,11 +445,16 @@ def Image_to_df(image,language='eng'):
             pass
     notes = []
     
-    list_notes_s = [str(i) for i in range(1,36)[::1]]  
+    list_notes_s = [str(i) for i in range(1,36)[::1]]
+    list_notes_neg = [int(i) for i in range(-36,0)]
+
     for i in range(len(df[0])):
         if len(df[0][i]) > 3:  
             a = df[0][i][1]  # is first item a note? 
             if a in list_notes_s:
+                df[0][i].remove(a)
+                notes.append(a)
+            elif process_num([a])[0] in list_notes_neg:
                 df[0][i].remove(a)
                 notes.append(a)
            
@@ -455,6 +575,7 @@ def convert_pdf(PDF_name, Output_file, language):
                 df = result[0]
             except:
                 df = pd.DataFrame(extracted)
+                result = []
         else:
             pix = page.get_pixmap(dpi=300)
             bytes = np.frombuffer(pix.samples, dtype=np.uint8)
@@ -480,15 +601,18 @@ def convert_pdf(PDF_name, Output_file, language):
         for i in range(1, ws1.max_row + 1):
             cell = ws1.cell(row=i, column=1, value=i-1 if i > 1 else '')
             apply_index_format(cell)
-
+        if result !=[]:
         # Write data to ws2 and add index
-        for r_idx, row in enumerate(dataframe_to_rows(result[1], index=False, header=False), 1):
-            # Add index
-            index_cell = ws2.cell(row=r_idx, column=1, value=r_idx-1)
-            apply_index_format(index_cell)
-            # Add data
-            for c_idx, value in enumerate(row, 2):
-                ws2.cell(row=r_idx, column=c_idx, value=value)
+            for r_idx, row in enumerate(dataframe_to_rows(result[1], index=False, header=False), 1):
+                # Add index
+                index_cell = ws2.cell(row=r_idx, column=1, value=r_idx-1)
+                apply_index_format(index_cell)
+                # Add data
+                for c_idx, value in enumerate(row, 2):
+                    try:
+                        ws2.cell(row=r_idx, column=c_idx, value=value)
+                    except:
+                        ws2.cell(row=r_idx, column=c_idx, value= 'character error')
         
         # Insert new column only if language is not 'eng'
         
@@ -538,7 +662,25 @@ To paste, left click and select special paste -> paste as Unicode. This will mai
 
 
 
-st.title('PDF to Excel Converter')
+st.title('DAS FAST')
+st.header('PDF to Excel Convertor')
+
+# Toggle button for showing/hiding the introduction text
+if "show_intro" not in st.session_state:
+    st.session_state.show_intro = True
+
+if st.button("Show/Hide Instructions"):
+    st.session_state.show_intro = not st.session_state.show_intro
+
+if st.session_state.show_intro:
+    st.text("""This tool aids the spreading process by converting PDFs into an Excel format. This is useful when the PDF needs translating, or the data in the PDF can't be copied and pasted.
+    
+    Please choose a PDF file by dragging and dropping it into the drag and drop area. Depending on the size and quality of the file, the processing time might vary from 1 to 5 minutes.
+    
+    Disclaimer - This product is still currently in Beta and may experience bugs. Thank you for your patience when testing this new feature!""")
+
+# Toggle button for the link to bug report
+st.link_button("Report a BUG", "https://ebrd0-my.sharepoint.com/:o:/g/personal/xuc_ebrd_com/Esrs05rTgZZGtageYtBx6JwB3fw8zeMg20fq3bogJk0EjA",icon="🚨")
 
 # File uploader
 uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
@@ -548,7 +690,7 @@ if uploaded_file is not None:
     st.write(f"File name: {uploaded_file.name}")
 
     # Allow the user to select the language
-    language = st.selectbox("Choose the language for OCR", ('eng', 'rus', 'tur'))
+    language = st.selectbox("Choose the language of the file", ('eng', 'rus', 'tur','fra'))
 
     # Process PDF once the user clicks "Process"
     if st.button("Process PDF"):
@@ -568,7 +710,7 @@ if uploaded_file is not None:
             # Provide a download link for the output Excel file
             with open(output_file, "rb") as f:
                 st.download_button(
-                    label="Download Excel",
+                    label="Download Result",
                     data=f,
                     file_name=output_file,
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
