@@ -707,7 +707,6 @@ if uploaded_file:
                     pages.append(int(range_str)-1)
         except ValueError:
             st.error("Invalid page range format. Please use commas or hyphens to separate page numbers.")
-            return
     else:
         pages = None  # If no pages specified, process all pages
 
