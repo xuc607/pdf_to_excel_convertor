@@ -663,12 +663,8 @@ To paste, left click and select special paste -> paste as Unicode. This will mai
     if 'Sheet' in workbook.sheetnames and len(workbook.sheetnames) > 1:
         workbook.remove(workbook['Sheet'])
 
-    # Save the file to a BytesIO buffer to allow download
-    output_stream = BytesIO()
-    workbook.save(output_stream)
-    output_stream.seek(0)
-
-    return output_stream
+    # Save the workbook
+        workbook.save(Output_file)
 
 
 
@@ -705,7 +701,7 @@ if uploaded_file is not None:
    # Select pages to process
     pdf_file = uploaded_file.read() if uploaded_file else None
     if pdf_file:
-        doc = pymupdf.open(BytesIO(pdf_file))
+        doc = pymupdf.open(pdf_file)
         total_pages = len(doc)
         page_selection = st.multiselect("Select pages to process", options=list(range(1, total_pages + 1)), default=list(range(1, total_pages + 1)))
 
@@ -724,5 +720,5 @@ if uploaded_file is not None:
                     file_name="processed_pdf.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-            else:
-                st.error("Please upload a PDF file before proceeding.")
+            except Exception as e:
+                st.error(f"Error processing PDF: {e}")
