@@ -541,7 +541,7 @@ def Image_to_df(image,language='eng'):
 
     return df, df_unprocessed
 
-def convert_pdf(PDF_name, Output_file, language):
+def convert_pdf(PDF_name, Output_file, language, pages=None):
     doc = pymupdf.open(PDF_name)
     workbook = Workbook()
     
@@ -565,8 +565,14 @@ def convert_pdf(PDF_name, Output_file, language):
         cell.font = Font(size=10, bold=True)
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = thin_border
-
-    for page_no in range(len(doc)):
+        
+    # If 'pages' is None, process all pages; otherwise, process the selected pages
+    if pages is None:
+        pages_to_process = range(len(doc))  # Process all pages
+    else:
+        pages_to_process = pages  # Use the user-provided list/range of pages
+        
+    for page_no in pages_to_process:
         page = doc[page_no]
         extracted = page.get_text().splitlines()
         if extracted:
@@ -657,12 +663,16 @@ To paste, left click and select special paste -> paste as Unicode. This will mai
     if 'Sheet' in workbook.sheetnames and len(workbook.sheetnames) > 1:
         workbook.remove(workbook['Sheet'])
 
-    # Save workbook
-    workbook.save(Output_file)
+    # Save the file to a BytesIO buffer to allow download
+    output_stream = BytesIO()
+    workbook.save(output_stream)
+    output_stream.seek(0)
+
+    return output_stream
 
 
 
-st.title('DAS FAST')
+st.title('DAS F-A-S-T')
 st.header('PDF to Excel Convertor')
 
 # Toggle button for showing/hiding the introduction text
@@ -692,28 +702,27 @@ if uploaded_file is not None:
     # Allow the user to select the language
     language = st.selectbox("Choose the language of the file", ('eng', 'rus', 'tur','fra'))
 
-    # Process PDF once the user clicks "Process"
-    if st.button("Process PDF"):
-        # Create a temporary file to save the uploaded PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-            # Write uploaded file to the temporary file
-            tmp_pdf.write(uploaded_file.read())
-            tmp_pdf_path = tmp_pdf.name
+   # Select pages to process
+    pdf_file = uploaded_file.read() if uploaded_file else None
+    if pdf_file:
+        doc = pymupdf.open(BytesIO(pdf_file))
+        total_pages = len(doc)
+        page_selection = st.multiselect("Select pages to process", options=list(range(1, total_pages + 1)), default=list(range(1, total_pages + 1)))
 
-        # Process the PDF
-        output_file = f"{uploaded_file.name.replace('.pdf', '')}.xlsx"
+        # Convert selected pages (convert to zero-indexed)
+        selected_pages = [p - 1 for p in page_selection]
 
-        try:
-            # Convert PDF to Excel
-            convert_pdf(tmp_pdf_path, output_file, language)
-
-            # Provide a download link for the output Excel file
-            with open(output_file, "rb") as f:
+    # Process button
+        if st.button("Process PDF"):
+            if uploaded_file:
+                st.write(f"Processing {len(selected_pages)} pages...")
+                output = convert_pdf(uploaded_file, "output.xlsx", language, pages=selected_pages)
+    
                 st.download_button(
-                    label="Download Result",
-                    data=f,
-                    file_name=output_file,
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    label="Download Processed File",
+                    data=output,
+                    file_name="processed_pdf.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
+            else:
+                st.error("Please upload a PDF file before proceeding.")
