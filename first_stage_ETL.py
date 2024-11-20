@@ -692,6 +692,25 @@ st.link_button("Report a BUG", "https://ebrd0-my.sharepoint.com/:o:/g/personal/x
 uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
 
 if uploaded_file:
+    language = st.selectbox("Choose the language of the file", ('eng', 'rus', 'tur','fra'))
+    # Page Range Input
+    page_input = st.text_input("Enter page numbers (e.g., '1,2,3' or '1-3')", value="")
+    if page_input:
+        try:
+            pages = []
+            page_ranges = page_input.split(',')
+            for range_str in page_ranges:
+                if '-' in range_str:
+                    start, end = map(int, range_str.split('-'))
+                    pages.extend(range(start-1, end))
+                else:
+                    pages.append(int(range_str)-1)
+        except ValueError:
+            st.error("Invalid page range format. Please use commas or hyphens to separate page numbers.")
+            return
+    else:
+        pages = None  # If no pages specified, process all pages
+
     # Save uploaded file to a temporary directory
     with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
         tmp_file.write(uploaded_file.read())
@@ -704,10 +723,9 @@ if uploaded_file:
 
     # Process the PDF
     try:
-        convert_pdf(pdf_path, output_filename, language='eng')
+        convert_pdf(pdf_path, output_filename, language=language, pages=pages)
         st.success(f"PDF processed successfully. The output file is saved as {output_filename}")
-            
-        # Provide a download link to the output file
+
         with open(output_filename, 'rb') as f:
             st.download_button("Download Excel", f, file_name=output_filename)
     except Exception as e:
