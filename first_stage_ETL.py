@@ -718,7 +718,7 @@ if uploaded_file:
         st.text("Processing PDF...")
     
         # Set the output filename
-        output_filename = pdf_path.replace('.pdf', '_output.xlsx')
+        output_filename = f"{uploaded_file.name.replace('.pdf', '')}.xlsx"
     
         # Process the PDF
         try:
