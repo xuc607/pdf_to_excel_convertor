@@ -710,22 +710,22 @@ if uploaded_file:
     else:
         pages = None  # If no pages specified, process all pages
 
-    # Save uploaded file to a temporary directory
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        pdf_path = tmp_file.name
-        
-    st.text("Processing PDF...")
-
-    # Set the output filename
-    output_filename = pdf_path.replace('.pdf', '_output.xlsx')
-
-    # Process the PDF
-    try:
-        convert_pdf(pdf_path, output_filename, language=language, pages=pages)
-        st.success(f"PDF processed successfully. The output file is saved as {output_filename}")
-
-        with open(output_filename, 'rb') as f:
-            st.download_button("Download Excel", f, file_name=output_filename)
-    except Exception as e:
-        st.error(f"An error occurred while processing the PDF: {str(e)}")
+    if st.button("Process PDF"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            pdf_path = tmp_file.name
+            
+        st.text("Processing PDF...")
+    
+        # Set the output filename
+        output_filename = pdf_path.replace('.pdf', '_output.xlsx')
+    
+        # Process the PDF
+        try:
+            convert_pdf(pdf_path, output_filename, language=language, pages=pages)
+            st.success(f"PDF processed successfully. The output file is saved as {output_filename}")
+    
+            with open(output_filename, 'rb') as f:
+                st.download_button("Download Excel", f, file_name=output_filename)
+        except Exception as e:
+            st.error(f"An error occurred while processing the PDF: {str(e)}")
