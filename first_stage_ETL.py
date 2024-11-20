@@ -691,35 +691,24 @@ st.link_button("Report a BUG", "https://ebrd0-my.sharepoint.com/:o:/g/personal/x
 # File uploader
 uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
 
-if uploaded_file is not None:
-    # Display the file details
-    st.write(f"File name: {uploaded_file.name}")
-
-    # Allow the user to select the language
-    language = st.selectbox("Choose the language of the file", ('eng', 'rus', 'tur','fra'))
-
-   # Select pages to process
-    pdf_file = uploaded_file.read() if uploaded_file else None
-    if pdf_file:
-        doc = pymupdf.open(pdf_file)
-        total_pages = len(doc)
-        page_selection = st.multiselect("Select pages to process", options=list(range(1, total_pages + 1)), default=list(range(1, total_pages + 1)))
-
-        # Convert selected pages (convert to zero-indexed)
-        selected_pages = [p - 1 for p in page_selection]
-
-    # Process button
-        if st.button("Process PDF"):
-            if uploaded_file:
-                try:
-                    st.write(f"Processing {len(selected_pages)} pages...")
-                    output = convert_pdf(uploaded_file, "output.xlsx", language, pages=selected_pages)
+if uploaded_file:
+    # Save uploaded file to a temporary directory
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        pdf_path = tmp_file.name
         
-                    st.download_button(
-                        label="Download Processed File",
-                        data=output,
-                        file_name="processed_pdf.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-                except Exception as e:
-                    st.error(f"Error processing PDF: {e}")
+    st.text("Processing PDF...")
+
+    # Set the output filename
+    output_filename = pdf_path.replace('.pdf', '_output.xlsx')
+
+    # Process the PDF
+    try:
+        convert_pdf(pdf_path, output_filename, language='eng')
+        st.success(f"PDF processed successfully. The output file is saved as {output_filename}")
+            
+        # Provide a download link to the output file
+        with open(output_filename, 'rb') as f:
+            st.download_button("Download Excel", f, file_name=output_filename)
+    except Exception as e:
+        st.error(f"An error occurred while processing the PDF: {str(e)}")
