@@ -711,14 +711,15 @@ if uploaded_file is not None:
     # Process button
         if st.button("Process PDF"):
             if uploaded_file:
-                st.write(f"Processing {len(selected_pages)} pages...")
-                output = convert_pdf(uploaded_file, "output.xlsx", language, pages=selected_pages)
-    
-                st.download_button(
-                    label="Download Processed File",
-                    data=output,
-                    file_name="processed_pdf.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            except Exception as e:
-                st.error(f"Error processing PDF: {e}")
+                try:
+                    st.write(f"Processing {len(selected_pages)} pages...")
+                    output = convert_pdf(uploaded_file, "output.xlsx", language, pages=selected_pages)
+        
+                    st.download_button(
+                        label="Download Processed File",
+                        data=output,
+                        file_name="processed_pdf.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                except Exception as e:
+                    st.error(f"Error processing PDF: {e}")
