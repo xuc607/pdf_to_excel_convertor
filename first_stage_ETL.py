@@ -723,7 +723,7 @@ if uploaded_file:
         # Process the PDF
         try:
             convert_pdf(pdf_path, output_filename, language=language, pages=pages)
-            st.success(f"PDF processed successfully!)
+            st.success("PDF processed successfully!")
     
             with open(output_filename, 'rb') as f:
                 st.download_button("Download Excel", f, file_name=output_filename)
